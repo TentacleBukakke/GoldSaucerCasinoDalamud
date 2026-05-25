@@ -936,7 +936,10 @@ public sealed class MainWindow
 
         ImGui.Spacing();
         ImGui.TextUnformatted("Betting");
-        ImGui.BulletText("Hosted games use the host-entered trade amount as the player's original bet.");
+        ImGui.BulletText("In hosted games, the host is the dealer and banker.");
+        ImGui.BulletText("Players trade their original bet to the host before readying.");
+        ImGui.BulletText("The host enters the amount they actually received from each player.");
+        ImGui.BulletText("If players lose, the host keeps the bet. If players win, the host manually pays the calculated return.");
         ImGui.BulletText("Bot games are no bet practice rounds and do not affect profile stats.");
         ImGui.BulletText("Winning normal hands return 2x the bet, including the original bet.");
         ImGui.BulletText("Push returns the original bet.");
@@ -1030,7 +1033,7 @@ public sealed class MainWindow
             this.saveConfiguration();
             this.OpenBlackjackReadyCheck();
             this.IsOpen = true;
-            this.blackjackMessage = $"Hosting blackjack room {this.activeRoomCode}. Share this code with players.";
+            this.blackjackMessage = $"Hosting blackjack room {this.activeRoomCode}. You are the dealer/banker; players trade bets to you before readying.";
         }
         catch (Exception ex)
         {

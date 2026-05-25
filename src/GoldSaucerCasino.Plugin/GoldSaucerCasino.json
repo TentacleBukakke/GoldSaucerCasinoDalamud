@@ -1,11 +1,11 @@
 {
   "Name": "Gold Saucer Casino",
   "Author": "Fake Taxi",
-  "Punchline": "Private table games with friends.",
-  "Description": "Adds an in-game casino table popup for opt-in private games. Poker is the first planned game. Wagers are tracked as a manual settlement ledger; the plugin does not automate gil transfer.",
+  "Punchline": "Hosted blackjack tables with friends.",
+  "Description": "Adds private blackjack tables for friends. In hosted games, the host acts as dealer and banker: players trade bets to the host, and the host manually pays winnings. Bot games are no-bet practice rounds. The plugin tracks table state and payouts but does not automate gil transfer.",
   "Tags": [
     "casino",
-    "poker",
+    "blackjack",
     "social"
   ]
 }

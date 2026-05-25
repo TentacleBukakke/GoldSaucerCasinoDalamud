@@ -12,6 +12,7 @@ Prototype Dalamud plugin for private opt-in casino tables in FFXIV. The first ga
 - The Open tab starts in a not-joined lobby with Host Table and Join Table actions.
 - Settings persist a last-known gil snapshot, last room code, and default buy-in.
 - Blackjack is now the primary table prototype, with host-entered bets, ready checks, visible player cards, a hidden dealer hole card, split/double/insurance eligibility, automatic busts, natural blackjack payout, and five-hit wins.
+- In hosted blackjack, the host is the dealer/banker. Players trade bets to the host; the host keeps losing bets and manually pays winning returns.
 - Blackjack supports up to five player seats plus the dealer, shows the local character name with `(you)`, and includes a solo Bot Game mode for no-gil testing.
 - Bot Game starts with no bet, does not affect profile stats, and uses the same dealer rule as real blackjack: hit 16 or lower, stand on 17 or higher.
 - The Dalamud Open button opens a table-only game window; the Settings button opens a separate settings/profile window.
@@ -110,7 +111,7 @@ https://gold-saucer-casino-relay.onrender.com
 
 ## Gil Settlement
 
-This prototype intentionally does not automate gil transfers. It should track buy-ins, payouts, and balances as a manual ledger so players can settle themselves in-game. Automating trades or gil movement is likely to create Terms of Service and plugin-review problems.
+This prototype intentionally does not automate gil transfers. In hosted blackjack, the host acts as dealer/banker: players trade bets to the host before the round, and the host manually pays calculated winnings after settlement. Automating trades or gil movement is likely to create Terms of Service and plugin-review problems.
 
 For blackjack, the host should enter the amount each player traded during the ready check. Split, double-down, and insurance actions also require host-confirmed trade amounts before the plugin applies the action.
 
