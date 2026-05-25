@@ -25,13 +25,7 @@ In game:
 - Use the plugin installer **Settings** button for setup, player profile, ledger, and rules.
 - Click **Host Game** to create a room code.
 - Friends click **Join Game** and enter that room code.
-- The hosted relay is already configured:
-
-```text
-https://gold-saucer-casino-relay.onrender.com
-```
-
-No one needs to run a local relay server for normal play.
+- Multiplayer relay is already configured in the plugin.
 
 ## Blackjack
 
@@ -52,7 +46,7 @@ This repo contains:
 
 - `GoldSaucerCasino.Plugin`: Dalamud plugin.
 - `GoldSaucerCasino.Core`: blackjack and poker rules.
-- `GoldSaucerCasino.Relay`: hosted WebSocket relay.
+- `GoldSaucerCasino.Relay`: WebSocket relay service.
 - `tests`: core tests and relay smoke tests.
 
 Build and test:
@@ -60,7 +54,6 @@ Build and test:
 ```powershell
 dotnet build FF14Casino.sln
 dotnet run --project tests/GoldSaucerCasino.Core.Tests/GoldSaucerCasino.Core.Tests.csproj
-dotnet run --project tests/GoldSaucerCasino.Relay.SmokeTests/GoldSaucerCasino.Relay.SmokeTests.csproj -- https://gold-saucer-casino-relay.onrender.com
 ```
 
 Rebuild the Dalamud custom repo package:
