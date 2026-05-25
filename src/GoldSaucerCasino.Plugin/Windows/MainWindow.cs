@@ -48,6 +48,12 @@ public sealed class MainWindow
         this.getLocalPlayerName = getLocalPlayerName;
         this.buyIn = Math.Max(1, configuration.DefaultBuyIn);
         this.defaultBuyIn = this.buyIn;
+        if (string.IsNullOrWhiteSpace(configuration.RelayUrl) || configuration.RelayUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) || configuration.RelayUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
+        {
+            configuration.RelayUrl = Configuration.DefaultRelayUrl;
+            this.saveConfiguration();
+        }
+
         this.activeRoomCode = configuration.LastRoomCode;
         this.relayUrl = configuration.RelayUrl;
         this.blackjackPlayerName = this.LocalPlayerName;
