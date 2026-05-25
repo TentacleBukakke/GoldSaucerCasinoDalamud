@@ -31,6 +31,7 @@ public sealed class MainWindow
     private string relayUrl = "http://127.0.0.1:5217";
     private string joinRoomCode = string.Empty;
     private string activeRoomCode = string.Empty;
+    private string hostPlayerName = string.Empty;
     private TableConnectionState connectionState = TableConnectionState.NotJoined;
     private bool isBotGame;
     private bool profileRecordedForRound;
@@ -60,7 +61,7 @@ public sealed class MainWindow
         this.demoTable.SeatPlayer("Thancred", 10000);
         this.demoTable.SeatPlayer("Y'shtola", 10000);
 
-        this.ResetBlackjackSeats();
+        this.ResetBlackjackSeats(includeLocalPlayer: true);
         this.relayClient.PlayersChanged += this.ApplyRelayPlayers;
         this.relayClient.StatusChanged += status => this.relayStatus = status;
     }
@@ -250,6 +251,12 @@ public sealed class MainWindow
 
     private void DrawBlackjackReadyCheck()
     {
+        if (this.blackjackTable.Seats.Count == 0)
+        {
+            ImGui.TextWrapped("Waiting for players to join. Share the room code, then enter bets after players appear.");
+            return;
+        }
+
         ImGui.TextUnformatted("Host enters the amount traded by each player, then marks them ready.");
         ImGui.Columns(4, "blackjack-ready", true);
         ImGui.TextUnformatted("Player");
@@ -856,6 +863,7 @@ public sealed class MainWindow
                 _ = this.relayClient.DisconnectAsync();
                 this.connectionState = TableConnectionState.NotJoined;
                 this.isBotGame = false;
+                this.hostPlayerName = string.Empty;
                 this.blackjackMessage = "Havent joined a game";
             }
         }
@@ -1015,7 +1023,8 @@ public sealed class MainWindow
             this.configuration.RelayUrl = this.relayUrl.Trim();
             this.saveConfiguration();
             var roomCode = await this.relayClient.HostAsync(this.configuration.RelayUrl, this.LocalPlayerName);
-            this.ResetBlackjackSeats();
+            this.hostPlayerName = this.LocalPlayerName;
+            this.ResetBlackjackSeats(includeLocalPlayer: false);
             this.connectionState = TableConnectionState.Hosting;
             this.isBotGame = false;
             this.profileRecordedForRound = false;
@@ -1049,7 +1058,8 @@ public sealed class MainWindow
             this.configuration.RelayUrl = this.relayUrl.Trim();
             this.saveConfiguration();
             await this.relayClient.JoinAsync(this.configuration.RelayUrl, roomCode, this.LocalPlayerName);
-            this.ResetBlackjackSeats();
+            this.hostPlayerName = string.Empty;
+            this.ResetBlackjackSeats(includeLocalPlayer: true);
             this.connectionState = TableConnectionState.Joined;
             this.isBotGame = false;
             this.profileRecordedForRound = false;
@@ -1070,7 +1080,8 @@ public sealed class MainWindow
 
     private void StartBotBlackjackGame()
     {
-        this.ResetBlackjackSeats();
+        this.hostPlayerName = "AI Dealer";
+        this.ResetBlackjackSeats(includeLocalPlayer: true);
         this.connectionState = TableConnectionState.Bot;
         this.isBotGame = true;
         this.profileRecordedForRound = true;
@@ -1081,11 +1092,13 @@ public sealed class MainWindow
         this.blackjackMessage = "Bot game started. No bet, no gil risk, no profile stats. Dealer hits 16 or lower and stands on 17+.";
     }
 
-    private void ResetBlackjackSeats()
+    private void ResetBlackjackSeats(bool includeLocalPlayer)
     {
         this.blackjackTable.ClearSeats();
-        var localName = this.LocalPlayerName;
-        this.blackjackTable.SeatPlayer(localName);
+        if (includeLocalPlayer)
+        {
+            this.blackjackTable.SeatPlayer(this.LocalPlayerName);
+        }
 
         this.blackjackBetInputs.Clear();
         this.blackjackInsuranceInputs.Clear();
@@ -1113,11 +1126,12 @@ public sealed class MainWindow
         var wasReadyCheck = this.blackjackTable.Phase == BlackjackPhase.ReadyCheck;
         var seats = playerNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
+            .Where(name => !string.Equals(name, this.hostPlayerName, StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(5)
             .ToArray();
 
-        if (seats.Length == 0)
+        if (seats.Length == 0 && this.connectionState == TableConnectionState.Joined)
         {
             seats = new[] { this.LocalPlayerName };
         }
