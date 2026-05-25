@@ -20,7 +20,6 @@ public sealed class MainWindow
     private readonly Dictionary<string, int> blackjackInsuranceInputs = [];
     private IReadOnlyList<BlackjackPayout> blackjackPayouts = [];
     private string playerName = "Player";
-    private string blackjackPlayerName = "Player";
     private int buyIn = 10000;
     private int defaultBuyIn = 10000;
     private int splitMatchedBet = 10000;
@@ -56,14 +55,12 @@ public sealed class MainWindow
 
         this.activeRoomCode = configuration.LastRoomCode;
         this.relayUrl = configuration.RelayUrl;
-        this.blackjackPlayerName = this.LocalPlayerName;
-
         this.demoTable.SeatPlayer("You", 10000);
         this.demoTable.SeatPlayer("Lyse", 10000);
         this.demoTable.SeatPlayer("Thancred", 10000);
         this.demoTable.SeatPlayer("Y'shtola", 10000);
 
-        this.ResetBlackjackSeats(includeDemoPlayers: true);
+        this.ResetBlackjackSeats();
         this.relayClient.PlayersChanged += this.ApplyRelayPlayers;
         this.relayClient.StatusChanged += status => this.relayStatus = status;
     }
@@ -211,20 +208,7 @@ public sealed class MainWindow
                 this.OpenBlackjackReadyCheck();
             }
 
-            ImGui.SameLine();
-            ImGui.InputText("Seat name", ref this.blackjackPlayerName, 32);
-            ImGui.SameLine();
-            if (ImGui.Button("Add Seat"))
-            {
-                try
-                {
-                    this.blackjackTable.SeatPlayer(this.blackjackPlayerName.Trim());
-                }
-                catch (Exception ex)
-                {
-                    this.blackjackMessage = ex.Message;
-                }
-            }
+            ImGui.TextWrapped("Seats update automatically as players join the room.");
 
             return;
         }
@@ -1031,7 +1015,7 @@ public sealed class MainWindow
             this.configuration.RelayUrl = this.relayUrl.Trim();
             this.saveConfiguration();
             var roomCode = await this.relayClient.HostAsync(this.configuration.RelayUrl, this.LocalPlayerName);
-            this.ResetBlackjackSeats(includeDemoPlayers: false);
+            this.ResetBlackjackSeats();
             this.connectionState = TableConnectionState.Hosting;
             this.isBotGame = false;
             this.profileRecordedForRound = false;
@@ -1065,7 +1049,7 @@ public sealed class MainWindow
             this.configuration.RelayUrl = this.relayUrl.Trim();
             this.saveConfiguration();
             await this.relayClient.JoinAsync(this.configuration.RelayUrl, roomCode, this.LocalPlayerName);
-            this.ResetBlackjackSeats(includeDemoPlayers: false);
+            this.ResetBlackjackSeats();
             this.connectionState = TableConnectionState.Joined;
             this.isBotGame = false;
             this.profileRecordedForRound = false;
@@ -1086,7 +1070,7 @@ public sealed class MainWindow
 
     private void StartBotBlackjackGame()
     {
-        this.ResetBlackjackSeats(includeDemoPlayers: false);
+        this.ResetBlackjackSeats();
         this.connectionState = TableConnectionState.Bot;
         this.isBotGame = true;
         this.profileRecordedForRound = true;
@@ -1097,18 +1081,11 @@ public sealed class MainWindow
         this.blackjackMessage = "Bot game started. No bet, no gil risk, no profile stats. Dealer hits 16 or lower and stands on 17+.";
     }
 
-    private void ResetBlackjackSeats(bool includeDemoPlayers)
+    private void ResetBlackjackSeats()
     {
         this.blackjackTable.ClearSeats();
         var localName = this.LocalPlayerName;
         this.blackjackTable.SeatPlayer(localName);
-        if (includeDemoPlayers)
-        {
-            foreach (var name in new[] { "Lyse", "Thancred", "Y'shtola", "Estinien" })
-            {
-                this.blackjackTable.SeatPlayer(name);
-            }
-        }
 
         this.blackjackBetInputs.Clear();
         this.blackjackInsuranceInputs.Clear();
