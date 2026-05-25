@@ -10,7 +10,7 @@ public sealed class Configuration : IPluginConfiguration
 
     public string LastRoomCode { get; set; } = string.Empty;
 
-    public string RelayUrl { get; set; } = "http://127.0.0.1:5217";
+    public string RelayUrl { get; set; } = "https://gold-saucer-casino-relay.onrender.com";
 
     public int DefaultBuyIn { get; set; } = 10000;
 

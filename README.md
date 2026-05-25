@@ -102,6 +102,12 @@ https://gold-saucer-casino-relay.onrender.com
 
 Use that URL in the plugin's **Settings** -> **Table Setup** -> **Relay URL** field.
 
+Current hosted relay:
+
+```text
+https://gold-saucer-casino-relay.onrender.com
+```
+
 ## Gil Settlement
 
 This prototype intentionally does not automate gil transfers. It should track buy-ins, payouts, and balances as a manual ledger so players can settle themselves in-game. Automating trades or gil movement is likely to create Terms of Service and plugin-review problems.
