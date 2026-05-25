@@ -70,6 +70,13 @@ public sealed class MainWindow
 
     private string LocalPlayerName => string.IsNullOrWhiteSpace(this.getLocalPlayerName()) ? "You" : this.getLocalPlayerName();
 
+    private string DealerDisplayName => this.connectionState switch
+    {
+        TableConnectionState.Hosting => $"{this.LocalPlayerName} (Dealer)",
+        TableConnectionState.Bot => "AI Dealer",
+        _ => "Dealer",
+    };
+
     public void Dispose() => this.relayClient.Dispose();
 
     public void Draw()
@@ -504,7 +511,7 @@ public sealed class MainWindow
         drawList.AddRect(tableMin + new Vector2(36, 48), tableMax - new Vector2(36, 36), ImGui.GetColorU32(new Vector4(0.08f, 0.7f, 0.27f, 1f)), 96, ImDrawFlags.None, 3f);
 
         ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 22);
-        this.CenterText("Dealer");
+        this.CenterText(this.DealerDisplayName);
         this.DrawDealerCards();
 
         ImGui.Dummy(new Vector2(0, 68));
@@ -979,7 +986,7 @@ public sealed class MainWindow
         ImGui.BulletText("Insurance loses in all other cases.");
 
         ImGui.Spacing();
-        ImGui.TextUnformatted("Dealer");
+        ImGui.TextUnformatted(this.DealerDisplayName);
         ImGui.BulletText("The dealer has no choices.");
         ImGui.BulletText("The dealer must hit on 16 or lower.");
         ImGui.BulletText("The dealer must stand on 17 or higher, including soft 17.");
