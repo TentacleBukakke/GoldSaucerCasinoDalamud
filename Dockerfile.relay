@@ -1,0 +1,14 @@
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+COPY global.json ./
+COPY src/GoldSaucerCasino.Relay/GoldSaucerCasino.Relay.csproj src/GoldSaucerCasino.Relay/
+RUN dotnet restore src/GoldSaucerCasino.Relay/GoldSaucerCasino.Relay.csproj
+
+COPY src/GoldSaucerCasino.Relay/ src/GoldSaucerCasino.Relay/
+RUN dotnet publish src/GoldSaucerCasino.Relay/GoldSaucerCasino.Relay.csproj -c Release -o /app/publish --no-restore
+
+FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
+WORKDIR /app
+COPY --from=build /app/publish .
+ENTRYPOINT ["dotnet", "GoldSaucerCasino.Relay.dll"]

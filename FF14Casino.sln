@@ -1,0 +1,43 @@
+
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoldSaucerCasino.Core", "src\GoldSaucerCasino.Core\GoldSaucerCasino.Core.csproj", "{4D28E880-2302-4F08-B823-30F2B1C1D371}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoldSaucerCasino.Plugin", "src\GoldSaucerCasino.Plugin\GoldSaucerCasino.Plugin.csproj", "{90B7AFAE-F655-4F61-9839-64DB19A98F69}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoldSaucerCasino.Core.Tests", "tests\GoldSaucerCasino.Core.Tests\GoldSaucerCasino.Core.Tests.csproj", "{0B2E7964-9D14-4277-A53A-B84C2F6F8D16}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoldSaucerCasino.Relay", "src\GoldSaucerCasino.Relay\GoldSaucerCasino.Relay.csproj", "{55E1FBBF-3324-4F74-8830-0B7F0D64549D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GoldSaucerCasino.Relay.SmokeTests", "tests\GoldSaucerCasino.Relay.SmokeTests\GoldSaucerCasino.Relay.SmokeTests.csproj", "{73F09046-5BE4-4572-8E4D-A3F67B83BC0B}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{4D28E880-2302-4F08-B823-30F2B1C1D371}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{4D28E880-2302-4F08-B823-30F2B1C1D371}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{4D28E880-2302-4F08-B823-30F2B1C1D371}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{4D28E880-2302-4F08-B823-30F2B1C1D371}.Release|Any CPU.Build.0 = Release|Any CPU
+		{90B7AFAE-F655-4F61-9839-64DB19A98F69}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{90B7AFAE-F655-4F61-9839-64DB19A98F69}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{90B7AFAE-F655-4F61-9839-64DB19A98F69}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{90B7AFAE-F655-4F61-9839-64DB19A98F69}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0B2E7964-9D14-4277-A53A-B84C2F6F8D16}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0B2E7964-9D14-4277-A53A-B84C2F6F8D16}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0B2E7964-9D14-4277-A53A-B84C2F6F8D16}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0B2E7964-9D14-4277-A53A-B84C2F6F8D16}.Release|Any CPU.Build.0 = Release|Any CPU
+		{55E1FBBF-3324-4F74-8830-0B7F0D64549D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{55E1FBBF-3324-4F74-8830-0B7F0D64549D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{55E1FBBF-3324-4F74-8830-0B7F0D64549D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{55E1FBBF-3324-4F74-8830-0B7F0D64549D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{73F09046-5BE4-4572-8E4D-A3F67B83BC0B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{73F09046-5BE4-4572-8E4D-A3F67B83BC0B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{73F09046-5BE4-4572-8E4D-A3F67B83BC0B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{73F09046-5BE4-4572-8E4D-A3F67B83BC0B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+EndGlobal

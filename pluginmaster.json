@@ -1,0 +1,30 @@
+[
+    {
+        "Author":  "Fake Taxi",
+        "Name":  "Gold Saucer Casino",
+        "InternalName":  "GoldSaucerCasino",
+        "AssemblyVersion":  "0.1.0.0",
+        "Description":  "Adds an in-game casino table popup for opt-in private games. Poker is the first planned game. Wagers are tracked as a manual settlement ledger; the plugin does not automate gil transfer.",
+        "ApplicableVersion":  "any",
+        "Tags":  [
+                     "casino",
+                     "poker",
+                     "social"
+                 ],
+        "DalamudApiLevel":  15,
+        "LoadRequiredState":  0,
+        "LoadSync":  false,
+        "CanUnloadAsync":  false,
+        "LoadPriority":  0,
+        "Punchline":  "Private table games with friends.",
+        "AcceptsFeedback":  true,
+        "RepoUrl":  "https://github.com/TentacleBukakke/GoldSaucerCasinoDalamud",
+        "DownloadLinkInstall":  "https://raw.githubusercontent.com/TentacleBukakke/GoldSaucerCasinoDalamud/main/plugins/GoldSaucerCasino/latest.zip",
+        "DownloadLinkTesting":  "https://raw.githubusercontent.com/TentacleBukakke/GoldSaucerCasinoDalamud/main/plugins/GoldSaucerCasino/latest.zip",
+        "DownloadLinkUpdate":  "https://raw.githubusercontent.com/TentacleBukakke/GoldSaucerCasinoDalamud/main/plugins/GoldSaucerCasino/latest.zip",
+        "DownloadCount":  0,
+        "LastUpdate":  "1779731806",
+        "IsHide":  false,
+        "IsTestingExclusive":  false
+    }
+]
