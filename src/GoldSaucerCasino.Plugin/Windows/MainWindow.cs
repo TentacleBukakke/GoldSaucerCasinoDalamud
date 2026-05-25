@@ -818,8 +818,6 @@ public sealed class MainWindow
     {
         ImGui.TextUnformatted($"Detected character: {this.LocalPlayerName} (you)");
         ImGui.TextUnformatted($"Gil detected: {this.configuration.LastKnownGil:N0}");
-        ImGui.SetNextItemWidth(260);
-        ImGui.InputText("Relay URL", ref this.relayUrl, 128);
         ImGui.TextWrapped(this.relayStatus);
         ImGui.Separator();
 
