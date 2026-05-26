@@ -82,8 +82,10 @@ public sealed class MainWindow
 
     private string DealerStatusText => this.connectionState switch
     {
-        TableConnectionState.Hosting when this.blackjackTable.Phase is BlackjackPhase.Lobby or BlackjackPhase.ReadyCheck => "Not ready",
-        TableConnectionState.Joined when this.remoteBlackjackSnapshot?.Phase is BlackjackPhase.Lobby or BlackjackPhase.ReadyCheck => "Not ready",
+        TableConnectionState.Hosting when this.blackjackTable.Phase == BlackjackPhase.ReadyCheck => "Ready check open",
+        TableConnectionState.Hosting when this.blackjackTable.Phase == BlackjackPhase.Lobby && !this.GetPlayerSeats().Any() => "Waiting for players",
+        TableConnectionState.Joined when this.remoteBlackjackSnapshot?.Phase == BlackjackPhase.ReadyCheck => "Ready check open",
+        TableConnectionState.Joined when this.remoteBlackjackSnapshot?.Phase == BlackjackPhase.Lobby && this.remoteBlackjackSnapshot.Seats.Count == 0 => "Waiting for players",
         TableConnectionState.Bot => "Ready",
         _ => string.Empty,
     };
@@ -215,6 +217,8 @@ public sealed class MainWindow
 
     private void DrawBlackjackControls()
     {
+        this.RemoveDealerSeatsFromLocalTable();
+
         if (this.connectionState == TableConnectionState.Joined)
         {
             this.DrawJoinedBlackjackControls();
@@ -337,6 +341,7 @@ public sealed class MainWindow
 
     private void DrawBlackjackReadyCheck()
     {
+        this.RemoveDealerSeatsFromLocalTable();
         var seats = this.GetPlayerSeats().ToArray();
         if (seats.Length == 0)
         {
@@ -1397,6 +1402,7 @@ public sealed class MainWindow
     {
         try
         {
+            this.RemoveDealerSeatsFromLocalTable();
             this.blackjackTable.OpenReadyCheck();
             foreach (var seat in this.blackjackTable.Seats)
             {
@@ -1633,6 +1639,48 @@ public sealed class MainWindow
 
     private IEnumerable<BlackjackSeat> GetPlayerSeats() =>
         this.blackjackTable.Seats.Where(seat => !this.IsDealerName(seat.Name));
+
+    private void RemoveDealerSeatsFromLocalTable()
+    {
+        if (this.connectionState != TableConnectionState.Hosting
+            || this.blackjackTable.Phase is BlackjackPhase.PlayerTurns or BlackjackPhase.DealerTurn or BlackjackPhase.Settled
+            || !this.blackjackTable.Seats.Any(seat => this.IsDealerName(seat.Name)))
+        {
+            return;
+        }
+
+        var wasReadyCheck = this.blackjackTable.Phase == BlackjackPhase.ReadyCheck;
+        var playerSeats = this.blackjackTable.Seats
+            .Where(seat => !this.IsDealerName(seat.Name))
+            .Select(seat => new
+            {
+                seat.Name,
+                seat.InitialBet,
+                seat.IsReady,
+            })
+            .ToArray();
+
+        this.blackjackTable.ClearSeats();
+        foreach (var seat in playerSeats)
+        {
+            this.blackjackTable.SeatPlayer(seat.Name);
+        }
+
+        if (!wasReadyCheck || playerSeats.Length == 0)
+        {
+            return;
+        }
+
+        this.blackjackTable.OpenReadyCheck();
+        foreach (var seat in playerSeats)
+        {
+            this.blackjackTable.SetBet(seat.Name, seat.InitialBet);
+            if (seat.IsReady && seat.InitialBet > 0)
+            {
+                this.blackjackTable.SetReady(seat.Name, true);
+            }
+        }
+    }
 
     private bool IsDealerName(string name)
     {
