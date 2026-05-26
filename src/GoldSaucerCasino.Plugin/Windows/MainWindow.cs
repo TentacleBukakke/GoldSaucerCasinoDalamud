@@ -2,6 +2,7 @@ using GoldSaucerCasino.Core.Blackjack;
 using GoldSaucerCasino.Core.Poker;
 using Dalamud.Bindings.ImGui;
 using System.Numerics;
+using System.Text.Json;
 using GoldSaucerCasino.Plugin;
 using GoldSaucerCasino.Plugin.Relay;
 
@@ -18,7 +19,9 @@ public sealed class MainWindow
     private readonly BlackjackTable blackjackTable = new();
     private readonly Dictionary<string, int> blackjackBetInputs = [];
     private readonly Dictionary<string, int> blackjackInsuranceInputs = [];
+    private readonly List<string> blackjackActionHistory = [];
     private IReadOnlyList<BlackjackPayout> blackjackPayouts = [];
+    private BlackjackTableSnapshot? remoteBlackjackSnapshot;
     private string playerName = "Player";
     private int buyIn = 10000;
     private int defaultBuyIn = 10000;
@@ -63,6 +66,7 @@ public sealed class MainWindow
 
         this.ResetBlackjackSeats(includeLocalPlayer: true);
         this.relayClient.PlayersChanged += this.ApplyRelayPlayers;
+        this.relayClient.MessageReceived += this.HandleRelayMessage;
         this.relayClient.StatusChanged += status => this.relayStatus = status;
     }
 
@@ -72,6 +76,7 @@ public sealed class MainWindow
     {
         TableConnectionState.Hosting => $"{this.LocalPlayerName} (Dealer)",
         TableConnectionState.Bot => "AI Dealer",
+        TableConnectionState.Joined when this.remoteBlackjackSnapshot is { DealerName.Length: > 0 } => $"{this.remoteBlackjackSnapshot.DealerName} (Dealer)",
         _ => "Dealer",
     };
 
@@ -202,9 +207,16 @@ public sealed class MainWindow
 
     private void DrawBlackjackControls()
     {
+        if (this.connectionState == TableConnectionState.Joined)
+        {
+            this.DrawJoinedBlackjackControls();
+            this.DrawActionHistory();
+            return;
+        }
+
         if (this.blackjackTable.Phase == BlackjackPhase.Lobby)
         {
-            if (ImGui.Button("Open Ready Check"))
+            if (this.connectionState == TableConnectionState.Hosting && this.ActionButton("Open Ready Check", this.blackjackTable.Seats.Count > 0))
             {
                 this.OpenBlackjackReadyCheck();
             }
@@ -223,6 +235,7 @@ public sealed class MainWindow
         if (this.blackjackTable.Phase == BlackjackPhase.PlayerTurns)
         {
             this.DrawBlackjackPlayerActions();
+            this.DrawActionHistory();
             return;
         }
 
@@ -233,8 +246,11 @@ public sealed class MainWindow
                 this.blackjackPayouts = this.blackjackTable.FinishDealerAndSettle();
                 this.RecordLocalProfileResult();
                 this.blackjackMessage = "Dealer finished. Payouts are calculated below.";
+                this.AddActionHistory($"{this.DealerDisplayName} settled the round.");
+                this.BroadcastBlackjackSnapshot();
             }
 
+            this.DrawActionHistory();
             return;
         }
 
@@ -246,6 +262,68 @@ public sealed class MainWindow
             }
 
             this.DrawPayouts();
+        }
+
+        this.DrawActionHistory();
+    }
+
+    private void DrawJoinedBlackjackControls()
+    {
+        var snapshot = this.remoteBlackjackSnapshot;
+        if (snapshot is null)
+        {
+            ImGui.TextWrapped("Connected. Waiting for the dealer to sync the table.");
+            return;
+        }
+
+        if (snapshot.Phase == BlackjackPhase.ReadyCheck)
+        {
+            ImGui.TextWrapped("Ready check is controlled by the dealer. Trade your bet to the dealer, then wait for them to mark you ready.");
+            return;
+        }
+
+        if (snapshot.Phase != BlackjackPhase.PlayerTurns)
+        {
+            ImGui.TextWrapped(snapshot.Phase == BlackjackPhase.DealerTurn
+                ? "Dealer is playing and settling the hand."
+                : "Waiting for the dealer.");
+            return;
+        }
+
+        var isMyTurn = string.Equals(snapshot.ActiveSeatName, this.LocalPlayerName, StringComparison.OrdinalIgnoreCase);
+        var activeSeat = snapshot.Seats.FirstOrDefault(seat => string.Equals(seat.Name, snapshot.ActiveSeatName, StringComparison.OrdinalIgnoreCase));
+        var activeHand = activeSeat?.Hands.ElementAtOrDefault(Math.Max(0, activeSeat.ActiveHandIndex));
+        if (!isMyTurn || activeHand is null)
+        {
+            ImGui.TextWrapped($"Waiting for {snapshot.ActiveSeatName}.");
+            return;
+        }
+
+        ImGui.TextUnformatted($"Your turn - Hand {activeSeat!.ActiveHandIndex + 1}");
+        ImGui.SameLine();
+        ImGui.TextUnformatted($"Total {activeHand.Total}");
+
+        if (this.ActionButton("Hit Me", activeHand.CanHit))
+        {
+            _ = this.SendBlackjackActionRequestAsync("hit");
+        }
+
+        ImGui.SameLine();
+        if (this.ActionButton("Stand", activeHand.CanStand))
+        {
+            _ = this.SendBlackjackActionRequestAsync("stand");
+        }
+
+        ImGui.SameLine();
+        if (this.ActionButton("Split Pair", activeHand.CanSplit))
+        {
+            _ = this.SendBlackjackActionRequestAsync("split");
+        }
+
+        ImGui.SameLine();
+        if (this.ActionButton("Double Down", activeHand.CanDoubleDown))
+        {
+            _ = this.SendBlackjackActionRequestAsync("double");
         }
     }
 
@@ -283,6 +361,8 @@ public sealed class MainWindow
                 try
                 {
                     this.blackjackTable.SetBet(seat.Name, bet);
+                    this.AddActionHistory($"{this.DisplaySeatName(seat.Name)} bet set to {bet:N0}.");
+                    this.BroadcastBlackjackSnapshot();
                 }
                 catch (Exception ex)
                 {
@@ -298,6 +378,8 @@ public sealed class MainWindow
                 try
                 {
                     this.blackjackTable.SetReady(seat.Name, ready);
+                    this.AddActionHistory($"{this.DisplaySeatName(seat.Name)} marked {(ready ? "ready" : "not ready")}.");
+                    this.BroadcastBlackjackSnapshot();
                 }
                 catch (Exception ex)
                 {
@@ -323,6 +405,8 @@ public sealed class MainWindow
                 this.blackjackMessage = this.blackjackTable.CanOfferInsurance
                     ? "Dealer shows an Ace. Insurance is available before player actions."
                     : "Cards dealt. Player turns go right to left by seat order.";
+                this.AddActionHistory("Cards dealt.");
+                this.BroadcastBlackjackSnapshot();
             }
             catch (Exception ex)
             {
@@ -358,6 +442,8 @@ public sealed class MainWindow
                 {
                     this.blackjackTable.SetInsuranceBet(seat.Name, insurance);
                     this.blackjackMessage = $"{seat.Name} insurance recorded.";
+                    this.AddActionHistory($"{seat.Name} insurance recorded.");
+                    this.BroadcastBlackjackSnapshot();
                 }
                 catch (Exception ex)
                 {
@@ -366,10 +452,62 @@ public sealed class MainWindow
             }
         }
 
+        if (this.connectionState == TableConnectionState.Hosting)
+        {
+            ImGui.TextWrapped($"Waiting for {seat.Name} to hit or stand from their own client.");
+
+            if (hand.CanSplit)
+            {
+                ImGui.SetNextItemWidth(120);
+                ImGui.InputInt("Split matched trade", ref this.splitMatchedBet, 1000, 10000);
+                if (this.ActionButton("Confirm Split", this.splitMatchedBet == hand.Bet))
+                {
+                    try
+                    {
+                        this.blackjackTable.Split(this.splitMatchedBet);
+                        this.blackjackMessage = hand.IsSplitAces
+                            ? "Split aces: one card dealt to each hand and turn advanced."
+                            : "Split complete. Play each hand in order.";
+                        this.AddActionHistory($"{seat.Name} split their hand.");
+                        this.BroadcastBlackjackSnapshot();
+                    }
+                    catch (Exception ex)
+                    {
+                        this.blackjackMessage = ex.Message;
+                    }
+                }
+            }
+
+            if (hand.CanDoubleDown)
+            {
+                ImGui.SetNextItemWidth(120);
+                ImGui.InputInt("Double trade", ref this.doubleDownBet, 1000, 10000);
+                var canDouble = this.doubleDownBet > 0 && this.doubleDownBet <= hand.Bet;
+                if (this.ActionButton("Confirm Double Down", canDouble))
+                {
+                    try
+                    {
+                        this.blackjackTable.DoubleDown(this.doubleDownBet);
+                        this.blackjackMessage = "Double down complete: one card dealt and turn advanced.";
+                        this.AddActionHistory($"{seat.Name} doubled down.");
+                        this.BroadcastBlackjackSnapshot();
+                    }
+                    catch (Exception ex)
+                    {
+                        this.blackjackMessage = ex.Message;
+                    }
+                }
+            }
+
+            return;
+        }
+
         if (this.ActionButton("Hit Me", hand.CanHit))
         {
             this.blackjackTable.Hit();
             this.blackjackMessage = hand.IsBust ? $"{seat.Name} bust." : $"{seat.Name} hit.";
+            this.AddActionHistory(this.blackjackMessage);
+            this.BroadcastBlackjackSnapshot();
         }
 
         ImGui.SameLine();
@@ -377,6 +515,8 @@ public sealed class MainWindow
         {
             this.blackjackTable.Stand();
             this.blackjackMessage = $"{seat.Name} stands.";
+            this.AddActionHistory(this.blackjackMessage);
+            this.BroadcastBlackjackSnapshot();
         }
 
         ImGui.SameLine();
@@ -413,6 +553,8 @@ public sealed class MainWindow
                     this.blackjackMessage = hand.IsSplitAces
                         ? "Split aces: one card dealt to each hand and turn advanced."
                         : "Split complete. Play each hand in order.";
+                    this.AddActionHistory($"{seat.Name} split their hand.");
+                    this.BroadcastBlackjackSnapshot();
                 }
                 catch (Exception ex)
                 {
@@ -436,6 +578,8 @@ public sealed class MainWindow
                 {
                     this.blackjackTable.DoubleDown(this.doubleDownBet);
                     this.blackjackMessage = "Double down complete: one card dealt and turn advanced.";
+                    this.AddActionHistory($"{seat.Name} doubled down.");
+                    this.BroadcastBlackjackSnapshot();
                 }
                 catch (Exception ex)
                 {
@@ -513,6 +657,19 @@ public sealed class MainWindow
 
     private void DrawDealerCards()
     {
+        if (this.connectionState == TableConnectionState.Joined && this.remoteBlackjackSnapshot is { } snapshot)
+        {
+            var remoteLabels = snapshot.DealerCards.Select(card => card.Hidden ? "???" : card.Label).ToList();
+            while (remoteLabels.Count < 2)
+            {
+                remoteLabels.Add("--");
+            }
+
+            ImGui.SetCursorPosX(Math.Max(0, (ImGui.GetContentRegionAvail().X - 122) / 2));
+            this.DrawCardRow(remoteLabels, false);
+            return;
+        }
+
         var labels = new List<string>();
         for (var i = 0; i < this.blackjackTable.DealerCards.Count; i++)
         {
@@ -530,6 +687,12 @@ public sealed class MainWindow
 
     private void DrawBlackjackSeats()
     {
+        if (this.connectionState == TableConnectionState.Joined && this.remoteBlackjackSnapshot is { } snapshot)
+        {
+            this.DrawRemoteBlackjackSeats(snapshot);
+            return;
+        }
+
         var seats = this.blackjackTable.Seats;
         var columns = Math.Max(1, Math.Min(seats.Count, 4));
         ImGui.Columns(columns, "blackjack-seats", false);
@@ -543,6 +706,41 @@ public sealed class MainWindow
             {
                 ImGui.TextUnformatted($"Total {hand.Total} {hand.Outcome}");
                 this.DrawCardRow(hand.Cards.Select(card => card.ToString()).ToArray(), false);
+            }
+
+            if (seat.Hands.Count == 0)
+            {
+                ImGui.TextUnformatted(seat.IsReady ? "Ready" : "Not ready");
+            }
+
+            ImGui.NextColumn();
+        }
+
+        ImGui.Columns(1);
+    }
+
+    private void DrawRemoteBlackjackSeats(BlackjackTableSnapshot snapshot)
+    {
+        var seats = snapshot.Seats;
+        if (seats.Count == 0)
+        {
+            this.CenterText("Waiting for players.");
+            return;
+        }
+
+        var columns = Math.Max(1, Math.Min(seats.Count, 4));
+        ImGui.Columns(columns, "blackjack-remote-seats", false);
+        foreach (var seat in seats)
+        {
+            var active = snapshot.Phase == BlackjackPhase.PlayerTurns
+                && string.Equals(snapshot.ActiveSeatName, seat.Name, StringComparison.OrdinalIgnoreCase);
+            var displayName = this.DisplaySeatName(seat.Name);
+            ImGui.TextUnformatted(active ? $"> {displayName}" : displayName);
+            ImGui.TextUnformatted($"Bet {seat.InitialBet:N0}");
+            foreach (var hand in seat.Hands)
+            {
+                ImGui.TextUnformatted($"Total {hand.Total} {hand.Outcome}");
+                this.DrawCardRow(hand.Cards, false);
             }
 
             if (seat.Hands.Count == 0)
@@ -1002,7 +1200,7 @@ public sealed class MainWindow
         }
 
         ImGui.Spacing();
-        ImGui.TextWrapped("Room codes are generated locally in this prototype. A relay server will be required to reserve room numbers globally and synchronize table actions between players.");
+        ImGui.TextWrapped("Hosted rooms use the shared relay automatically. The host is the dealer/banker; players join with the invite room number.");
     }
 
     private void HostTable()
@@ -1025,15 +1223,18 @@ public sealed class MainWindow
             var roomCode = await this.relayClient.HostAsync(this.configuration.RelayUrl, this.LocalPlayerName);
             this.hostPlayerName = this.LocalPlayerName;
             this.ResetBlackjackSeats(includeLocalPlayer: false);
+            this.remoteBlackjackSnapshot = null;
+            this.blackjackActionHistory.Clear();
             this.connectionState = TableConnectionState.Hosting;
             this.isBotGame = false;
             this.profileRecordedForRound = false;
             this.activeRoomCode = roomCode;
             this.configuration.LastRoomCode = this.activeRoomCode;
             this.saveConfiguration();
-            this.OpenBlackjackReadyCheck();
             this.IsOpen = true;
             this.blackjackMessage = $"Hosting blackjack room {this.activeRoomCode}. You are the dealer/banker; players trade bets to you before readying.";
+            this.AddActionHistory($"{this.LocalPlayerName} opened the room as dealer.");
+            this.BroadcastBlackjackSnapshot();
         }
         catch (Exception ex)
         {
@@ -1059,14 +1260,15 @@ public sealed class MainWindow
             this.saveConfiguration();
             await this.relayClient.JoinAsync(this.configuration.RelayUrl, roomCode, this.LocalPlayerName);
             this.hostPlayerName = string.Empty;
-            this.ResetBlackjackSeats(includeLocalPlayer: true);
+            this.ResetBlackjackSeats(includeLocalPlayer: false);
+            this.remoteBlackjackSnapshot = null;
+            this.blackjackActionHistory.Clear();
             this.connectionState = TableConnectionState.Joined;
             this.isBotGame = false;
             this.profileRecordedForRound = false;
             this.activeRoomCode = roomCode;
             this.configuration.LastRoomCode = roomCode;
             this.saveConfiguration();
-            this.OpenBlackjackReadyCheck();
             this.IsOpen = true;
             this.blackjackMessage = $"Joined blackjack room {roomCode}. Waiting for table updates.";
         }
@@ -1088,6 +1290,8 @@ public sealed class MainWindow
         this.activeRoomCode = "BOT";
         this.blackjackTable.StartFreeRound();
         this.blackjackPayouts = [];
+        this.remoteBlackjackSnapshot = null;
+        this.blackjackActionHistory.Clear();
         this.IsOpen = true;
         this.blackjackMessage = "Bot game started. No bet, no gil risk, no profile stats. Dealer hits 16 or lower and stands on 17+.";
     }
@@ -1115,9 +1319,16 @@ public sealed class MainWindow
             return;
         }
 
+        if (this.connectionState == TableConnectionState.Joined)
+        {
+            this.relayStatus = "Connected to dealer relay. Waiting for table snapshots.";
+            return;
+        }
+
         if (this.blackjackTable.Phase is BlackjackPhase.PlayerTurns or BlackjackPhase.DealerTurn or BlackjackPhase.Settled)
         {
             this.relayStatus = "Relay player list changed; seats will refresh next round.";
+            this.BroadcastBlackjackSnapshot();
             return;
         }
 
@@ -1165,6 +1376,7 @@ public sealed class MainWindow
         }
 
         this.relayStatus = $"Relay synced {this.blackjackTable.Seats.Count} player(s).";
+        this.BroadcastBlackjackSnapshot();
     }
 
     private void OpenBlackjackReadyCheck()
@@ -1179,6 +1391,8 @@ public sealed class MainWindow
 
             this.blackjackPayouts = [];
             this.profileRecordedForRound = this.isBotGame;
+            this.AddActionHistory("Ready check opened.");
+            this.BroadcastBlackjackSnapshot();
         }
         catch (Exception ex)
         {
@@ -1211,6 +1425,171 @@ public sealed class MainWindow
             this.configuration.LastKnownGil = gil;
             this.saveConfiguration();
         }
+    }
+
+    private void HandleRelayMessage(RelayEnvelope envelope)
+    {
+        BlackjackRelayMessage? message;
+        try
+        {
+            message = JsonSerializer.Deserialize<BlackjackRelayMessage>(envelope.Payload, RelayJson.Options);
+        }
+        catch
+        {
+            return;
+        }
+
+        if (message is null || message.Type == "heartbeat")
+        {
+            return;
+        }
+
+        if (message.Type == "table.snapshot" && message.Snapshot is not null && this.connectionState == TableConnectionState.Joined)
+        {
+            this.remoteBlackjackSnapshot = message.Snapshot;
+            this.hostPlayerName = message.Snapshot.DealerName;
+            this.blackjackMessage = message.Snapshot.Message;
+            this.blackjackActionHistory.Clear();
+            this.blackjackActionHistory.AddRange(message.Snapshot.ActionHistory.TakeLast(80));
+            return;
+        }
+
+        if (message.Type == "action.request" && this.connectionState == TableConnectionState.Hosting && !string.IsNullOrWhiteSpace(message.Action))
+        {
+            this.ApplyPlayerActionRequest(envelope.SenderName, message.Action);
+        }
+    }
+
+    private async Task SendBlackjackActionRequestAsync(string action)
+    {
+        await this.relayClient.SendAsync(JsonSerializer.Serialize(new BlackjackRelayMessage("action.request", null, action), RelayJson.Options));
+    }
+
+    private void ApplyPlayerActionRequest(string playerName, string action)
+    {
+        var seat = this.blackjackTable.ActiveSeat;
+        if (seat is null || !string.Equals(seat.Name, playerName, StringComparison.OrdinalIgnoreCase))
+        {
+            this.AddActionHistory($"{playerName} tried to act out of turn.");
+            this.BroadcastBlackjackSnapshot();
+            return;
+        }
+
+        try
+        {
+            switch (action)
+            {
+                case "hit":
+                    this.blackjackTable.Hit();
+                    this.blackjackMessage = $"{playerName} hit.";
+                    this.AddActionHistory(this.blackjackMessage);
+                    break;
+                case "stand":
+                    this.blackjackTable.Stand();
+                    this.blackjackMessage = $"{playerName} stands.";
+                    this.AddActionHistory(this.blackjackMessage);
+                    break;
+                case "split":
+                    this.blackjackMessage = $"{playerName} requested split. Confirm the matching trade as dealer.";
+                    this.splitMatchedBet = (int)(seat.ActiveHand?.Bet ?? seat.InitialBet);
+                    this.AddActionHistory(this.blackjackMessage);
+                    break;
+                case "double":
+                    this.blackjackMessage = $"{playerName} requested double down. Confirm the extra trade as dealer.";
+                    this.doubleDownBet = (int)Math.Min(seat.ActiveHand?.Bet ?? seat.InitialBet, Math.Max(1, this.doubleDownBet));
+                    this.AddActionHistory(this.blackjackMessage);
+                    break;
+                default:
+                    return;
+            }
+        }
+        catch (Exception ex)
+        {
+            this.blackjackMessage = ex.Message;
+            this.AddActionHistory($"{playerName} action failed: {ex.Message}");
+        }
+
+        if (this.blackjackTable.Phase == BlackjackPhase.DealerTurn)
+        {
+            this.AddActionHistory("All player hands are done. Dealer can settle.");
+        }
+
+        this.BroadcastBlackjackSnapshot();
+    }
+
+    private void BroadcastBlackjackSnapshot()
+    {
+        if (this.connectionState != TableConnectionState.Hosting || !this.relayClient.IsConnected)
+        {
+            return;
+        }
+
+        var snapshot = this.CreateBlackjackSnapshot();
+        var message = new BlackjackRelayMessage("table.snapshot", snapshot, null);
+        _ = this.relayClient.SendAsync(JsonSerializer.Serialize(message, RelayJson.Options));
+    }
+
+    private BlackjackTableSnapshot CreateBlackjackSnapshot()
+    {
+        var dealerCards = this.blackjackTable.DealerCards
+            .Select((card, index) => new BlackjackCardSnapshot(card.ToString(), index == 0 && this.blackjackTable.DealerHoleCardHidden))
+            .ToArray();
+        var seats = this.blackjackTable.Seats.Select(seat => new BlackjackSeatSnapshot(
+            seat.Name,
+            seat.InitialBet,
+            seat.IsReady,
+            seat.ActiveHandIndex,
+            seat.Hands.Select(hand => new BlackjackHandSnapshot(
+                hand.Bet,
+                hand.Cards.Select(card => card.ToString()).ToArray(),
+                hand.Total,
+                hand.Outcome,
+                hand.CanHit,
+                !hand.IsStanding && hand.Outcome == BlackjackOutcome.Pending,
+                hand.CanSplit,
+                hand.CanDoubleDown)).ToArray())).ToArray();
+
+        return new BlackjackTableSnapshot(
+            this.LocalPlayerName,
+            this.blackjackTable.Phase,
+            this.blackjackTable.ActiveSeat?.Name ?? string.Empty,
+            this.blackjackTable.ActiveSeat?.ActiveHandIndex ?? 0,
+            dealerCards,
+            seats,
+            this.blackjackMessage,
+            this.blackjackActionHistory.TakeLast(80).ToArray());
+    }
+
+    private void AddActionHistory(string line)
+    {
+        if (string.IsNullOrWhiteSpace(line))
+        {
+            return;
+        }
+
+        this.blackjackActionHistory.Add($"[{DateTime.Now:HH:mm}] {line}");
+        if (this.blackjackActionHistory.Count > 80)
+        {
+            this.blackjackActionHistory.RemoveRange(0, this.blackjackActionHistory.Count - 80);
+        }
+    }
+
+    private void DrawActionHistory()
+    {
+        if (this.blackjackActionHistory.Count == 0)
+        {
+            return;
+        }
+
+        ImGui.Separator();
+        ImGui.TextUnformatted("History");
+        ImGui.BeginChild("blackjack-history", new Vector2(0, 120), true);
+        foreach (var line in this.blackjackActionHistory.TakeLast(30))
+        {
+            ImGui.TextWrapped(line);
+        }
+
+        ImGui.EndChild();
     }
 
     private int GetBlackjackBetInput(BlackjackSeat seat)
@@ -1260,6 +1639,37 @@ public sealed class MainWindow
         ImGui.SetCursorPosX(Math.Max(0, (ImGui.GetContentRegionAvail().X - width) / 2));
         ImGui.TextUnformatted(text);
     }
+
+    public sealed record BlackjackRelayMessage(string Type, BlackjackTableSnapshot? Snapshot, string? Action);
+
+    public sealed record BlackjackTableSnapshot(
+        string DealerName,
+        BlackjackPhase Phase,
+        string ActiveSeatName,
+        int ActiveHandIndex,
+        IReadOnlyList<BlackjackCardSnapshot> DealerCards,
+        IReadOnlyList<BlackjackSeatSnapshot> Seats,
+        string Message,
+        IReadOnlyList<string> ActionHistory);
+
+    public sealed record BlackjackCardSnapshot(string Label, bool Hidden);
+
+    public sealed record BlackjackSeatSnapshot(
+        string Name,
+        long InitialBet,
+        bool IsReady,
+        int ActiveHandIndex,
+        IReadOnlyList<BlackjackHandSnapshot> Hands);
+
+    public sealed record BlackjackHandSnapshot(
+        long Bet,
+        IReadOnlyList<string> Cards,
+        int Total,
+        BlackjackOutcome Outcome,
+        bool CanHit,
+        bool CanStand,
+        bool CanSplit,
+        bool CanDoubleDown);
 
     private enum TableConnectionState
     {

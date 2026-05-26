@@ -10,15 +10,40 @@ public sealed class RelayClient : IDisposable
 {
     private readonly HttpClient httpClient = new();
     private readonly CancellationTokenSource cancellation = new();
+    private readonly SemaphoreSlim sendLock = new(1, 1);
     private ClientWebSocket? socket;
 
     public event Action<IReadOnlyList<string>>? PlayersChanged;
+
+    public event Action<RelayEnvelope>? MessageReceived;
 
     public event Action<string>? StatusChanged;
 
     public string? RoomCode { get; private set; }
 
     public bool IsConnected => this.socket?.State == WebSocketState.Open;
+
+    public async Task SendAsync(string payload)
+    {
+        if (this.socket is not { State: WebSocketState.Open } activeSocket)
+        {
+            return;
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(payload);
+        await this.sendLock.WaitAsync(this.cancellation.Token);
+        try
+        {
+            if (activeSocket.State == WebSocketState.Open)
+            {
+                await activeSocket.SendAsync(bytes, WebSocketMessageType.Text, true, this.cancellation.Token);
+            }
+        }
+        finally
+        {
+            this.sendLock.Release();
+        }
+    }
 
     public async Task<string> HostAsync(string relayUrl, string playerName)
     {
@@ -59,6 +84,7 @@ public sealed class RelayClient : IDisposable
         this.cancellation.Cancel();
         this.socket?.Dispose();
         this.httpClient.Dispose();
+        this.sendLock.Dispose();
         this.cancellation.Dispose();
     }
 
@@ -71,6 +97,7 @@ public sealed class RelayClient : IDisposable
         await this.socket.ConnectAsync(ToWebSocketUri(relayUrl, roomCode, playerName), this.cancellation.Token);
         this.StatusChanged?.Invoke($"Connected to relay room {roomCode}.");
         _ = Task.Run(this.ReceiveLoopAsync);
+        _ = Task.Run(this.HeartbeatLoopAsync);
     }
 
     private async Task ReceiveLoopAsync()
@@ -106,6 +133,10 @@ public sealed class RelayClient : IDisposable
                         this.PlayersChanged?.Invoke(snapshot.Players.Select(player => player.Name).ToArray());
                     }
                 }
+                else if (envelope.Type == "client.message")
+                {
+                    this.MessageReceived?.Invoke(envelope);
+                }
             }
         }
         catch (OperationCanceledException)
@@ -114,6 +145,25 @@ public sealed class RelayClient : IDisposable
         catch (Exception ex)
         {
             this.StatusChanged?.Invoke($"Relay error: {ex.Message}");
+        }
+    }
+
+    private async Task HeartbeatLoopAsync()
+    {
+        try
+        {
+            while (!this.cancellation.IsCancellationRequested && this.socket?.State == WebSocketState.Open)
+            {
+                await Task.Delay(TimeSpan.FromSeconds(30), this.cancellation.Token);
+                await this.SendAsync("""{"type":"heartbeat"}""");
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            this.StatusChanged?.Invoke($"Relay heartbeat error: {ex.Message}");
         }
     }
 
