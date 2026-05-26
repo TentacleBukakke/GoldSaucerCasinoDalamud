@@ -478,11 +478,12 @@ public sealed class MainWindow
                 {
                     try
                     {
+                        var handIndex = seat.ActiveHandIndex;
                         this.blackjackTable.Split(this.splitMatchedBet);
                         this.blackjackMessage = hand.IsSplitAces
                             ? "Split aces: one card dealt to each hand and turn advanced."
                             : "Split complete. Play each hand in order.";
-                        this.AddActionHistory($"{seat.Name} split their hand.");
+                        this.AddActionHistory(this.DescribeSplitResult(seat, handIndex));
                         this.BroadcastBlackjackSnapshot();
                     }
                     catch (Exception ex)
@@ -501,9 +502,10 @@ public sealed class MainWindow
                 {
                     try
                     {
+                        var beforeCardCount = hand.Cards.Count;
                         this.blackjackTable.DoubleDown(this.doubleDownBet);
                         this.blackjackMessage = "Double down complete: one card dealt and turn advanced.";
-                        this.AddActionHistory($"{seat.Name} doubled down.");
+                        this.AddActionHistory(this.DescribeDrawAction(seat.Name, "doubled down", hand, beforeCardCount));
                         this.BroadcastBlackjackSnapshot();
                     }
                     catch (Exception ex)
@@ -518,9 +520,10 @@ public sealed class MainWindow
 
         if (this.ActionButton("Hit Me", hand.CanHit))
         {
+            var beforeCardCount = hand.Cards.Count;
             this.blackjackTable.Hit();
             this.blackjackMessage = hand.IsBust ? $"{seat.Name} bust." : $"{seat.Name} hit.";
-            this.AddActionHistory(this.blackjackMessage);
+            this.AddActionHistory(this.DescribeDrawAction(seat.Name, "hit", hand, beforeCardCount));
             this.BroadcastBlackjackSnapshot();
         }
 
@@ -563,11 +566,12 @@ public sealed class MainWindow
             {
                 try
                 {
+                    var handIndex = seat.ActiveHandIndex;
                     this.blackjackTable.Split(this.splitMatchedBet);
                     this.blackjackMessage = hand.IsSplitAces
                         ? "Split aces: one card dealt to each hand and turn advanced."
                         : "Split complete. Play each hand in order.";
-                    this.AddActionHistory($"{seat.Name} split their hand.");
+                    this.AddActionHistory(this.DescribeSplitResult(seat, handIndex));
                     this.BroadcastBlackjackSnapshot();
                 }
                 catch (Exception ex)
@@ -590,9 +594,10 @@ public sealed class MainWindow
             {
                 try
                 {
+                    var beforeCardCount = hand.Cards.Count;
                     this.blackjackTable.DoubleDown(this.doubleDownBet);
                     this.blackjackMessage = "Double down complete: one card dealt and turn advanced.";
-                    this.AddActionHistory($"{seat.Name} doubled down.");
+                    this.AddActionHistory(this.DescribeDrawAction(seat.Name, "doubled down", hand, beforeCardCount));
                     this.BroadcastBlackjackSnapshot();
                 }
                 catch (Exception ex)
@@ -1506,9 +1511,11 @@ public sealed class MainWindow
             switch (action)
             {
                 case "hit":
+                    var hitHand = seat.ActiveHand ?? throw new InvalidOperationException("No active hand.");
+                    var hitBeforeCardCount = hitHand.Cards.Count;
                     this.blackjackTable.Hit();
                     this.blackjackMessage = $"{playerName} hit.";
-                    this.AddActionHistory(this.blackjackMessage);
+                    this.AddActionHistory(this.DescribeDrawAction(playerName, "hit", hitHand, hitBeforeCardCount));
                     break;
                 case "stand":
                     this.blackjackTable.Stand();
@@ -1604,6 +1611,34 @@ public sealed class MainWindow
             .ToArray();
         return visibleCards.Length == 0 ? 0 : BlackjackRules.BestTotal(visibleCards);
     }
+
+    private string DescribeDrawAction(string playerName, string action, BlackjackHand hand, int beforeCardCount)
+    {
+        var drawnCard = hand.Cards.Count > beforeCardCount
+            ? hand.Cards[hand.Cards.Count - 1].ToString()
+            : "a card";
+        var suffix = hand.IsBust
+            ? " (bust)"
+            : hand.IsFiveHitWin
+                ? " (five-hit win)"
+                : string.Empty;
+        return $"{playerName} {action}, drew {drawnCard}. Total {hand.Total}{suffix}.";
+    }
+
+    private string DescribeSplitResult(BlackjackSeat seat, int splitHandIndex)
+    {
+        var firstHand = seat.Hands.ElementAtOrDefault(splitHandIndex);
+        var secondHand = seat.Hands.ElementAtOrDefault(splitHandIndex + 1);
+        if (firstHand is null || secondHand is null)
+        {
+            return $"{seat.Name} split their hand.";
+        }
+
+        return $"{seat.Name} split: hand {splitHandIndex + 1} {this.DescribeHandCards(firstHand)} total {firstHand.Total}, hand {splitHandIndex + 2} {this.DescribeHandCards(secondHand)} total {secondHand.Total}.";
+    }
+
+    private string DescribeHandCards(BlackjackHand hand) =>
+        string.Join(" ", hand.Cards.Select(card => card.ToString()));
 
     private void AddActionHistory(string line)
     {

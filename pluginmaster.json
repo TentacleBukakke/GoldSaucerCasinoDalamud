@@ -3,7 +3,7 @@
         "Author":  "Fake Taxi",
         "Name":  "Gold Saucer Casino",
         "InternalName":  "GoldSaucerCasino",
-        "AssemblyVersion":  "0.1.5.0",
+        "AssemblyVersion":  "0.1.6.0",
         "Description":  "Adds private blackjack tables for friends. In hosted games, the host acts as dealer and banker: players trade bets to the host, and the host manually pays winnings. Bot games are no-bet practice rounds. The plugin tracks table state and payouts but does not automate gil transfer.",
         "ApplicableVersion":  "any",
         "Tags":  [
@@ -23,7 +23,7 @@
         "DownloadLinkTesting":  "https://raw.githubusercontent.com/TentacleBukakke/GoldSaucerCasinoDalamud/main/plugins/GoldSaucerCasino/latest.zip",
         "DownloadLinkUpdate":  "https://raw.githubusercontent.com/TentacleBukakke/GoldSaucerCasinoDalamud/main/plugins/GoldSaucerCasino/latest.zip",
         "DownloadCount":  0,
-        "LastUpdate":  "1779795972",
+        "LastUpdate":  "1779796249",
         "IsHide":  false,
         "IsTestingExclusive":  false
     }
