@@ -80,6 +80,14 @@ public sealed class MainWindow
         _ => "Dealer",
     };
 
+    private string DealerStatusText => this.connectionState switch
+    {
+        TableConnectionState.Hosting when this.blackjackTable.Phase is BlackjackPhase.Lobby or BlackjackPhase.ReadyCheck => "Not ready",
+        TableConnectionState.Joined when this.remoteBlackjackSnapshot?.Phase is BlackjackPhase.Lobby or BlackjackPhase.ReadyCheck => "Not ready",
+        TableConnectionState.Bot => "Ready",
+        _ => string.Empty,
+    };
+
     public void Dispose() => this.relayClient.Dispose();
 
     public void Draw()
@@ -647,6 +655,11 @@ public sealed class MainWindow
 
         ImGui.SetCursorPosY(ImGui.GetCursorPosY() + 22);
         this.CenterText(this.DealerDisplayName);
+        if (this.DealerStatusText.Length > 0)
+        {
+            this.CenterText(this.DealerStatusText);
+        }
+
         this.DrawDealerCards();
 
         ImGui.Dummy(new Vector2(0, 68));
@@ -1338,6 +1351,7 @@ public sealed class MainWindow
         var seats = playerNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
             .Where(name => !string.Equals(name, this.hostPlayerName, StringComparison.OrdinalIgnoreCase))
+            .Where(name => this.connectionState != TableConnectionState.Hosting || !string.Equals(name, this.LocalPlayerName, StringComparison.OrdinalIgnoreCase))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(5)
             .ToArray();
