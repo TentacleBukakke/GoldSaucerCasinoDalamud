@@ -1,7 +1,7 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Version>0.1.4</Version>
+    <Version>0.1.5</Version>
     <AssemblyName>GoldSaucerCasino</AssemblyName>
     <RootNamespace>GoldSaucerCasino.Plugin</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>

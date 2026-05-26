@@ -686,6 +686,9 @@ public sealed class MainWindow
 
             ImGui.SetCursorPosX(Math.Max(0, (ImGui.GetContentRegionAvail().X - 122) / 2));
             this.DrawCardRow(remoteLabels, false);
+            this.CenterText(snapshot.DealerHoleCardHidden
+                ? $"Showing {snapshot.DealerVisibleTotal}"
+                : $"Total {snapshot.DealerTotal}");
             return;
         }
 
@@ -702,6 +705,9 @@ public sealed class MainWindow
 
         ImGui.SetCursorPosX(Math.Max(0, (ImGui.GetContentRegionAvail().X - 122) / 2));
         this.DrawCardRow(labels, false);
+        this.CenterText(this.blackjackTable.DealerHoleCardHidden
+            ? $"Showing {this.GetDealerVisibleTotal()}"
+            : $"Total {this.GetDealerTotal()}");
     }
 
     private void DrawBlackjackSeats()
@@ -1195,7 +1201,7 @@ public sealed class MainWindow
         ImGui.BulletText("Insurance loses in all other cases.");
 
         ImGui.Spacing();
-        ImGui.TextUnformatted(this.DealerDisplayName);
+        ImGui.TextUnformatted("Dealer");
         ImGui.BulletText("The dealer has no choices.");
         ImGui.BulletText("The dealer must hit on 16 or lower.");
         ImGui.BulletText("The dealer must stand on 17 or higher, including soft 17.");
@@ -1575,9 +1581,28 @@ public sealed class MainWindow
             this.blackjackTable.ActiveSeat?.Name ?? string.Empty,
             this.blackjackTable.ActiveSeat?.ActiveHandIndex ?? 0,
             dealerCards,
+            this.blackjackTable.DealerHoleCardHidden,
+            this.GetDealerTotal(),
+            this.GetDealerVisibleTotal(),
             seats,
             this.blackjackMessage,
             this.blackjackActionHistory.TakeLast(80).ToArray());
+    }
+
+    private int GetDealerTotal() =>
+        this.blackjackTable.DealerCards.Count == 0 ? 0 : BlackjackRules.BestTotal(this.blackjackTable.DealerCards);
+
+    private int GetDealerVisibleTotal()
+    {
+        if (this.blackjackTable.DealerCards.Count == 0)
+        {
+            return 0;
+        }
+
+        var visibleCards = this.blackjackTable.DealerCards
+            .Where((_, index) => !(index == 0 && this.blackjackTable.DealerHoleCardHidden))
+            .ToArray();
+        return visibleCards.Length == 0 ? 0 : BlackjackRules.BestTotal(visibleCards);
     }
 
     private void AddActionHistory(string line)
@@ -1730,6 +1755,9 @@ public sealed class MainWindow
         string ActiveSeatName,
         int ActiveHandIndex,
         IReadOnlyList<BlackjackCardSnapshot> DealerCards,
+        bool DealerHoleCardHidden,
+        int DealerTotal,
+        int DealerVisibleTotal,
         IReadOnlyList<BlackjackSeatSnapshot> Seats,
         string Message,
         IReadOnlyList<string> ActionHistory);
