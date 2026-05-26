@@ -1,6 +1,7 @@
 using GoldSaucerCasino.Core.Blackjack;
 using GoldSaucerCasino.Core.Poker;
 using Dalamud.Bindings.ImGui;
+using Dalamud.Plugin.Services;
 using System.Numerics;
 using System.Text.Json;
 using GoldSaucerCasino.Plugin;
@@ -14,6 +15,8 @@ public sealed class MainWindow
     private readonly Action saveConfiguration;
     private readonly Func<long> getCurrentGil;
     private readonly Func<string> getLocalPlayerName;
+    private readonly ITextureProvider textureProvider;
+    private readonly string cardAssetDirectory;
     private readonly RelayClient relayClient = new();
     private readonly PokerTable demoTable = new();
     private readonly BlackjackTable blackjackTable = new();
@@ -43,12 +46,14 @@ public sealed class MainWindow
 
     public bool IsSettingsOpen { get; set; }
 
-    public MainWindow(Configuration configuration, Action saveConfiguration, Func<long> getCurrentGil, Func<string> getLocalPlayerName)
+    public MainWindow(Configuration configuration, Action saveConfiguration, Func<long> getCurrentGil, Func<string> getLocalPlayerName, ITextureProvider textureProvider, string pluginDirectory)
     {
         this.configuration = configuration;
         this.saveConfiguration = saveConfiguration;
         this.getCurrentGil = getCurrentGil;
         this.getLocalPlayerName = getLocalPlayerName;
+        this.textureProvider = textureProvider;
+        this.cardAssetDirectory = Path.Combine(pluginDirectory, "cards");
         this.buyIn = Math.Max(1, configuration.DefaultBuyIn);
         this.defaultBuyIn = this.buyIn;
         if (string.IsNullOrWhiteSpace(configuration.RelayUrl) || configuration.RelayUrl.Contains("127.0.0.1", StringComparison.OrdinalIgnoreCase) || configuration.RelayUrl.Contains("localhost", StringComparison.OrdinalIgnoreCase))
@@ -991,6 +996,11 @@ public sealed class MainWindow
     private void DrawCard(string label, bool muted)
     {
         var cardSize = new Vector2(56, 78);
+        if (!muted && this.TryDrawCardImage(label, cardSize))
+        {
+            return;
+        }
+
         var isRed = label.Contains('H') || label.Contains('D');
         var color = muted ? new Vector4(0.12f, 0.14f, 0.16f, 1f) : new Vector4(0.94f, 0.94f, 0.88f, 1f);
         var textColor = muted ? new Vector4(0.7f, 0.75f, 0.82f, 1f) : new Vector4(0.08f, 0.09f, 0.11f, 1f);
@@ -1005,6 +1015,69 @@ public sealed class MainWindow
         ImGui.PushStyleColor(ImGuiCol.Text, textColor);
         ImGui.Button(label, cardSize);
         ImGui.PopStyleColor(4);
+    }
+
+    private bool TryDrawCardImage(string label, Vector2 cardSize)
+    {
+        var assetPath = this.GetCardAssetPath(label);
+        if (assetPath is null || !File.Exists(assetPath))
+        {
+            return false;
+        }
+
+        try
+        {
+            var texture = this.textureProvider.GetFromFile(assetPath).GetWrapOrDefault();
+            if (texture is null)
+            {
+                return false;
+            }
+
+            ImGui.Image(texture.Handle, cardSize);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private string? GetCardAssetPath(string label)
+    {
+        if (label.Length < 2)
+        {
+            return null;
+        }
+
+        var rank = label[..^1] switch
+        {
+            "A" => "Ace",
+            "K" => "King",
+            "Q" => "Queen",
+            "J" => "Jack",
+            "T" => "Ten",
+            "9" => "Nine",
+            "8" => "Eight",
+            "7" => "Seven",
+            "6" => "Six",
+            "5" => "Five",
+            "4" => "Four",
+            "3" => "Three",
+            "2" => "Two",
+            _ => null,
+        };
+        var suit = label[^1] switch
+        {
+            'C' => "Clubs",
+            'D' => "Diamonds",
+            'H' => "Hearts",
+            'S' => "Spades",
+            _ => null,
+        };
+
+        return rank is null || suit is null
+            ? null
+            : Path.Combine(this.cardAssetDirectory, $"{rank}_of_{suit}_from_FF25APC.png");
     }
 
     private void DrawSettingsTab()

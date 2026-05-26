@@ -25,13 +25,17 @@ public sealed class Plugin : IDalamudPlugin
     [PluginService]
     private static IObjectTable ObjectTable { get; set; } = null!;
 
+    [PluginService]
+    private static ITextureProvider TextureProvider { get; set; } = null!;
+
     public Plugin()
     {
         this.configuration = PluginInterface.GetPluginConfig() as Configuration ?? new Configuration();
         this.configuration.LastKnownGil = GetCurrentGil();
         PluginInterface.SavePluginConfig(this.configuration);
 
-        this.mainWindow = new MainWindow(this.configuration, this.SaveConfiguration, GetCurrentGil, GetLocalPlayerName);
+        var pluginDirectory = PluginInterface.AssemblyLocation.DirectoryName ?? AppContext.BaseDirectory;
+        this.mainWindow = new MainWindow(this.configuration, this.SaveConfiguration, GetCurrentGil, GetLocalPlayerName, TextureProvider, pluginDirectory);
 
         PluginInterface.UiBuilder.Draw += this.Draw;
         PluginInterface.UiBuilder.OpenConfigUi += this.OpenSettingsWindow;

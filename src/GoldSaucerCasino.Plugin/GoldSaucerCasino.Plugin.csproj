@@ -1,7 +1,7 @@
 <Project Sdk="Dalamud.NET.Sdk/15.0.0">
   <PropertyGroup>
     <TargetFramework>net10.0-windows</TargetFramework>
-    <Version>0.1.6</Version>
+    <Version>0.1.7</Version>
     <AssemblyName>GoldSaucerCasino</AssemblyName>
     <RootNamespace>GoldSaucerCasino.Plugin</RootNamespace>
     <ImplicitUsings>enable</ImplicitUsings>
@@ -10,5 +10,8 @@
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\GoldSaucerCasino.Core\GoldSaucerCasino.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <Content Include="..\..\resources\*.png" Link="cards\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 </Project>
