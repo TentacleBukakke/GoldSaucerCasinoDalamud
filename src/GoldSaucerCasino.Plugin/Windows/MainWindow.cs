@@ -337,7 +337,8 @@ public sealed class MainWindow
 
     private void DrawBlackjackReadyCheck()
     {
-        if (this.blackjackTable.Seats.Count == 0)
+        var seats = this.GetPlayerSeats().ToArray();
+        if (seats.Length == 0)
         {
             ImGui.TextWrapped("Waiting for players to join. Share the room code, then enter bets after players appear.");
             return;
@@ -355,7 +356,7 @@ public sealed class MainWindow
         ImGui.NextColumn();
         ImGui.Separator();
 
-        foreach (var seat in this.blackjackTable.Seats)
+        foreach (var seat in seats)
         {
             ImGui.TextUnformatted(this.DisplaySeatName(seat.Name));
             ImGui.NextColumn();
@@ -706,8 +707,8 @@ public sealed class MainWindow
             return;
         }
 
-        var seats = this.blackjackTable.Seats;
-        var columns = Math.Max(1, Math.Min(seats.Count, 4));
+        var seats = this.GetPlayerSeats().ToArray();
+        var columns = Math.Max(1, Math.Min(seats.Length, 4));
         ImGui.Columns(columns, "blackjack-seats", false);
         foreach (var seat in seats)
         {
@@ -734,14 +735,14 @@ public sealed class MainWindow
 
     private void DrawRemoteBlackjackSeats(BlackjackTableSnapshot snapshot)
     {
-        var seats = snapshot.Seats;
-        if (seats.Count == 0)
+        var seats = snapshot.Seats.Where(seat => !this.IsDealerName(seat.Name)).ToArray();
+        if (seats.Length == 0)
         {
             this.CenterText("Waiting for players.");
             return;
         }
 
-        var columns = Math.Max(1, Math.Min(seats.Count, 4));
+        var columns = Math.Max(1, Math.Min(seats.Length, 4));
         ImGui.Columns(columns, "blackjack-remote-seats", false);
         foreach (var seat in seats)
         {
@@ -1350,8 +1351,7 @@ public sealed class MainWindow
         var wasReadyCheck = this.blackjackTable.Phase == BlackjackPhase.ReadyCheck;
         var seats = playerNames
             .Where(name => !string.IsNullOrWhiteSpace(name))
-            .Where(name => !string.Equals(name, this.hostPlayerName, StringComparison.OrdinalIgnoreCase))
-            .Where(name => this.connectionState != TableConnectionState.Hosting || !string.Equals(name, this.LocalPlayerName, StringComparison.OrdinalIgnoreCase))
+            .Where(name => !this.IsDealerName(name))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .Take(5)
             .ToArray();
@@ -1548,7 +1548,7 @@ public sealed class MainWindow
         var dealerCards = this.blackjackTable.DealerCards
             .Select((card, index) => new BlackjackCardSnapshot(card.ToString(), index == 0 && this.blackjackTable.DealerHoleCardHidden))
             .ToArray();
-        var seats = this.blackjackTable.Seats.Select(seat => new BlackjackSeatSnapshot(
+        var seats = this.GetPlayerSeats().Select(seat => new BlackjackSeatSnapshot(
             seat.Name,
             seat.InitialBet,
             seat.IsReady,
@@ -1629,7 +1629,27 @@ public sealed class MainWindow
     }
 
     private string DisplaySeatName(string name) =>
-        string.Equals(name, this.LocalPlayerName, StringComparison.OrdinalIgnoreCase) ? $"{name} (you)" : name;
+        IsSamePlayer(name, this.LocalPlayerName) ? $"{name} (you)" : name;
+
+    private IEnumerable<BlackjackSeat> GetPlayerSeats() =>
+        this.blackjackTable.Seats.Where(seat => !this.IsDealerName(seat.Name));
+
+    private bool IsDealerName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            return false;
+        }
+
+        return (this.connectionState == TableConnectionState.Hosting && IsSamePlayer(name, this.LocalPlayerName))
+            || IsSamePlayer(name, this.hostPlayerName)
+            || IsSamePlayer(name, this.remoteBlackjackSnapshot?.DealerName ?? string.Empty);
+    }
+
+    private static bool IsSamePlayer(string left, string right) =>
+        !string.IsNullOrWhiteSpace(left)
+        && !string.IsNullOrWhiteSpace(right)
+        && string.Equals(left.Trim(), right.Trim(), StringComparison.OrdinalIgnoreCase);
 
     private bool ActionButton(string label, bool enabled)
     {
